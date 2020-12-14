@@ -1,0 +1,274 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import numpy as np\n",
+    "import pandas as pd\n",
+    "import random\n",
+    "pd.options.mode.chained_assignment = None"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "dataFrame = pd.read_csv('22.txt', sep=\" \", header=None, skiprows=1, names=['w', 'v', 'p'])\n",
+    "WVVals = pd.read_csv('22.txt', sep=\" \", header=None, nrows=1)\n",
+    "\n",
+    "maxWeight = WVVals.iloc[0][0]\n",
+    "maxVolume = WVVals.iloc[0][1]\n",
+    "\n",
+    "weightList = dataFrame['w'].values.tolist()\n",
+    "volumeList = dataFrame['v'].values.tolist()\n",
+    "priceList = dataFrame['p'].values.tolist()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def fitness(currSet):\n",
+    "    currWeight = sum([a * b for a, b in zip(weightList, currSet)])\n",
+    "    currVolume = sum([a * b for a, b in zip(volumeList, currSet)])\n",
+    "    currPrice = sum([a * b for a, b in zip(priceList, currSet)])\n",
+    "\n",
+    "    if currVolume > maxVolume or currWeight > maxWeight:\n",
+    "        return 0;\n",
+    "\n",
+    "    return currPrice;\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Шаг 1 . Случайная генерация\n",
+    "def generateEntity(length):\n",
+    "    newSet = [0 for i in range(length)]\n",
+    "\n",
+    "    newSet[random.randint(0,length-1)] = 1\n",
+    "    for idx in range(0,length-1):\n",
+    "        if(newSet[idx]!=1):\n",
+    "            newSet[idx] = 1\n",
+    "            if(fitness(newSet) == 0):\n",
+    "                newSet[idx] = 0\n",
+    "                break\n",
+    "    return newSet\n",
+    "\n",
+    "def generation(length, entities):\n",
+    "    sets = []\n",
+    "    setID=0;\n",
+    "    for i in range(entities):\n",
+    "        newSet = generateEntity(length)\n",
+    "        sets.append([setID, newSet, fitness(newSet)])\n",
+    "        setID=setID+1\n",
+    "    return pd.DataFrame(sets,columns=['id', 'set', 'fitness'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Шаг 2. Массовая игра в русскую рулетку\n",
+    "def sectioning(setsDF):\n",
+    "    setsData = setsDF\n",
+    "    setsData = setsData[setsData['fitness'] != 0]\n",
+    "    totalFitness = sum(setsData['fitness'].values.tolist())\n",
+    "    maxSectVal = 1;\n",
+    "\n",
+    "    setsData['section'] = setsData.apply(lambda row: row['fitness']/totalFitness, axis=1)\n",
+    "    setsData = setsData.sort_values(by=['fitness'],ascending=False)\n",
+    "\n",
+    "    sectionsFixed = setsData['section'].values.tolist()\n",
+    "    newSections = []\n",
+    "    for fit in sectionsFixed:\n",
+    "        maxSectVal = maxSectVal-fit\n",
+    "        if(maxSectVal<0):\n",
+    "            maxSectVal = 0\n",
+    "        fit = maxSectVal\n",
+    "        newSections.append(maxSectVal)\n",
+    "    setsData['section'] = newSections\n",
+    "    return setsData\n",
+    "\n",
+    "def roulette(sectDF):\n",
+    "    while True:\n",
+    "        rand = random.random()\n",
+    "        chosen = sectDF[sectDF['section']>rand]\n",
+    "        if(len(chosen.values.tolist())>0):break\n",
+    "        if (len(sectDF.values.tolist()) == 1):return sectDF.iloc[0]   \n",
+    "    return chosen.iloc[-1]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Создание пар\n",
+    "def createPairs(setsDF):\n",
+    "    setsDF = sectioning(setsDF)\n",
+    "    setsDF['pair'] = [0 for i in range(len(setsDF['set'].values.tolist()))]\n",
+    "    currPairNum = 0\n",
+    "    while True:\n",
+    "        pairless = setsDF[setsDF['pair']==0]\n",
+    "        pairlessCount = len(pairless.values.tolist())\n",
+    "        pairless = sectioning(pairless)\n",
+    "        if(pairlessCount < 2):\n",
+    "            break\n",
+    "        \n",
+    "        firstParentID = roulette(pairless)['id']\n",
+    "        secondParentID = roulette(pairless[pairless['id'] != firstParentID])['id']\n",
+    "        setsDF.loc[setsDF['id'].isin([firstParentID,secondParentID]),'pair'] = currPairNum\n",
+    "        currPairNum=currPairNum+1\n",
+    "    return setsDF\n",
+    "\n",
+    "#Шаг 5. Формирование новой популяции (замена своих родителей)\n",
+    "\n",
+    "#Шаг 6. Оценка"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Шаг 3. Кроссинговер (однородный (каждый бит от случайно выбранного родителя))\n",
+    "def breed(setPair):\n",
+    "    return [setPair[random.randint(0,1)][i] for i in range(0,len(setPair[0]))]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Шаг 4. Мутация (инвертирование всех битов у 1 особи )\n",
+    "def mutation(setPair):\n",
+    "    randnum = random.randint(0,1)\n",
+    "    return [(~np.array(setPair[randnum]).astype('bool')).astype('int').tolist(),setPair[1-randnum]]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def newPop(setsPairs):\n",
+    "    columnNames = ['id', 'set', 'fitness']\n",
+    "    pairsCount = setsPairs[\"pair\"].max()\n",
+    "    newDF = pd.DataFrame(columns=columnNames)\n",
+    "    for pairIDX in range(1,pairsCount+1):\n",
+    "        setPair = setsPairs[setsPairs['pair'] == pairIDX]['set'].values.tolist()\n",
+    "        children = [breed(setPair),breed(setPair)]\n",
+    "        children = mutation(children)\n",
+    "        childIDS = setsPairs[setsPairs['pair'] == pairIDX]['id'].values.tolist()\n",
+    "        childID = 0\n",
+    "        for child in children:\n",
+    "            childDF = pd.DataFrame([[childIDS[childID],child,fitness(child)]],columns=columnNames)\n",
+    "            childID = childID+1\n",
+    "            newDF = newDF.append(childDF)\n",
+    "    return newDF"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Полученный набор:  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]\n",
+      "Полученный вес:  11880\n",
+      "Полученный объем:  11.799999999999999\n",
+      "Полученная цена:  3549\n",
+      "Поколений:  2\n",
+      "Причина окончания:  Нет изменений\n"
+     ]
+    }
+   ],
+   "source": [
+    "iterationCount=0\n",
+    "generationSize = 200\n",
+    "setsDF = generation(len(priceList), generationSize)\n",
+    "stopReason = ''\n",
+    "while(True):\n",
+    "    prevmaxfit=setsDF['fitness'].max()    \n",
+    "    setsPairs = createPairs(setsDF)\n",
+    "    if (len(setsPairs[setsPairs['pair']!=0].values.tolist()) == 0):\n",
+    "        continue\n",
+    "    newSets = newPop(setsPairs[setsPairs['pair']!=0])\n",
+    "    newIDS = newSets['id'].values.tolist()\n",
+    "    setsDF = setsDF[~setsDF['id'].isin(newIDS)].append(newSets)\n",
+    "    iterationCount= iterationCount+1\n",
+    "    if(abs(setsDF['fitness'].max()-prevmaxfit)<min(priceList)):\n",
+    "        stopReason = 'Нет изменений'\n",
+    "        break\n",
+    "    if(len(setsDF[setsDF['fitness']!=0].values.tolist())<2):\n",
+    "        stopReason = 'Нет пар'\n",
+    "        break\n",
+    "    if(iterationCount==500):\n",
+    "        stopReason = 'Прошло максимальное кол-во итераций'\n",
+    "        break\n",
+    "bestSet = setsDF[setsDF['fitness']!=0].sort_values(by=['fitness'],ascending=False).iloc[0]\n",
+    "resSet = bestSet['set']\n",
+    "totalWeight = sum([a * b for a, b in zip(weightList, resSet)])\n",
+    "totalVolume = sum([a * b for a, b in zip(volumeList, resSet)])\n",
+    "\n",
+    "print('Полученный набор: ',resSet)\n",
+    "print('Полученный вес: ',totalWeight)\n",
+    "print('Полученный объем: ',totalVolume)\n",
+    "print('Полученная цена: ',bestSet['fitness'])\n",
+    "print('Поколений: ',iterationCount+1)\n",
+    "print('Причина окончания: ',stopReason)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.9"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
