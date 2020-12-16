@@ -4,5 +4,7 @@
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/2.1" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/2.2" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pyeasyga" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pyeasyga.gi" vcs="Git" />
   </component>
 </project>
